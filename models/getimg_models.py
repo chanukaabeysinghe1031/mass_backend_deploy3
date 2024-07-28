@@ -5,6 +5,8 @@ from utils.db import uploadImage
 import random
 import base64
 import os
+import io
+from PIL import Image
 
 GETIMG_API_KEY = os.getenv("GETIMG_API_KEY")
 
@@ -89,13 +91,32 @@ async def process_getimg_inpaint_and_outpaint(user_id: str, model_id: str, file1
     download_image_response1 = requests.get(file1)
     download_image_response2 = requests.get(file2)
 
+    print("input images")
+    print(file1)
+    print(file2)
+
     if download_image_response1.status_code != 200:
         raise HTTPException(status_code=400, detail="Failed to download image from the provided URL")
     if download_image_response2.status_code != 200:
         raise HTTPException(status_code=400, detail="Failed to download image from the provided URL")
 
-    base64_encoded_str1 = base64.b64encode(download_image_response1.content).decode("utf-8")
-    base64_encoded_str2 = base64.b64encode(download_image_response2.content).decode("utf-8")
+    image1 = Image.open(io.BytesIO(download_image_response1.content))
+    image2 = Image.open(io.BytesIO(download_image_response2.content))
+
+    # Resize image2 to match the dimensions of image1
+    image2 = image2.resize(image1.size)
+
+    # Convert images to bytes
+    image1_bytes = io.BytesIO()
+    image1.save(image1_bytes, format='PNG')
+    image1_bytes = image1_bytes.getvalue()
+
+    image2_bytes = io.BytesIO()
+    image2.save(image2_bytes, format='PNG')
+    image2_bytes = image2_bytes.getvalue()
+
+    base64_encoded_str1 = base64.b64encode(image1_bytes).decode("utf-8")
+    base64_encoded_str2 = base64.b64encode(image2_bytes).decode("utf-8")
 
     payload = {
         "model": "stable-diffusion-v1-5-inpainting",
@@ -104,13 +125,13 @@ async def process_getimg_inpaint_and_outpaint(user_id: str, model_id: str, file1
         "image": base64_encoded_str1,
         "mask_image": base64_encoded_str2,
         "strength": 1,
-        "width": 512,
-        "height": 512,
+        "width": image1.width,
+        "height": image1.height,
         "steps": 25,
         "guidance": 7.5,
         "seed": 0,
         "scheduler": "ddim",
-        "output_format": "jpeg"
+        "output_format": "png"
     }
     headers = {
         "accept": "application/json",
@@ -130,9 +151,12 @@ async def process_getimg_inpaint_and_outpaint(user_id: str, model_id: str, file1
 
     with open(file_path, "wb") as f:
         f.write(base64.b64decode(data["image"]))
-        uploaded_url = await uploadImage(file_path, user_id, model_id)
-        image_urls.append({"url": uploaded_url, "finish_reason": "SUCCESS"})
 
-    remove_images(local_files)
+    print(file_path)
+
+    uploaded_url = await uploadImage(file_path, user_id, model_id)
+    image_urls.append({"url": uploaded_url, "finish_reason": "SUCCESS"})
+
+    # remove_images(local_files)
 
     return image_urls

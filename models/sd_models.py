@@ -6,6 +6,8 @@ from utils.db import uploadImage
 import random
 import base64
 import os
+import io
+from PIL import Image
 
 STABILITY_API_KEY = os.getenv("STABILITY_API_KEY")
 STABILITY_ENGINE_ID = "stable-diffusion-v1-6"  # change this by constraint model
@@ -488,6 +490,27 @@ async def process_sd_inpaint_and_outpaint(user_id: str, model_id: str, file1: st
     if download_image_response2.status_code != 200:
         raise HTTPException(status_code=400, detail="Failed to download image from the provided URL")
 
+    image1 = Image.open(io.BytesIO(download_image_response1.content))
+    image2 = Image.open(io.BytesIO(download_image_response2.content))
+
+    # Resize image2 to match the dimensions of image1
+    image2 = image2.resize(image1.size)
+
+    # Convert images to RGB mode if they are in RGBA mode
+    if image1.mode == 'RGBA':
+        image1 = image1.convert('RGB')
+    if image2.mode == 'RGBA':
+        image2 = image2.convert('RGB')
+
+    # Convert images to bytes
+    image1_bytes = io.BytesIO()
+    image1.save(image1_bytes, format='JPEG')
+    image1_bytes = image1_bytes.getvalue()
+
+    image2_bytes = io.BytesIO()
+    image2.save(image2_bytes, format='JPEG')
+    image2_bytes = image2_bytes.getvalue()
+
     response = requests.post(
         f"{api_host}/v1/generation/{engine_id}/image-to-image/masking",
         headers={
@@ -495,8 +518,8 @@ async def process_sd_inpaint_and_outpaint(user_id: str, model_id: str, file1: st
             "Authorization": f"Bearer {api_key}"
         },
         files={
-            'init_image': ("image1.jpg", download_image_response1.content),
-            'mask_image': ("image2.jpg", download_image_response2.content)
+            'init_image': ("image1.jpg", image1_bytes),
+            'mask_image': ("image2.jpg", image2_bytes)
         },
         data={
             "mask_source": "MASK_IMAGE_WHITE",
