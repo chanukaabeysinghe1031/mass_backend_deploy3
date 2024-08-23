@@ -30,7 +30,7 @@ MODEL_CONSTRAINTS = {
     "stability-core": {
         "max_resolution": 1.5,
         "aspect_rations": ["16:9", "1:1", "21:9", "2:3", "3:2", "4:5", "5:4", "9:16", "9:21"],
-        "style_preset": ["3d-model", "analog-film", "anime", "cinematic", "comic-book", "digital-art", "enhance",
+        "style_preset": ["none", "3d-model", "analog-film", "anime", "cinematic", "comic-book", "digital-art", "enhance",
                          "fantasy-art", "isometric", "line-art", "low-poly", "modeling-compound", "neon-punk",
                          "origami", "photographic", "pixel-art", "tile-texture"]
     },
@@ -311,7 +311,8 @@ async def process_stability_core(user_id: str, model_id: str, input_data: dict, 
     aspect_ratio, style_preset = check_constraints(model_id, width, height, aspect_ratio, style_preset)
 
     input_data["aspect_ratio"] = aspect_ratio
-    input_data["style_preset"] = style_preset
+    if style_preset is not None and style_preset != "none":
+        input_data["style_preset"] = style_preset
 
     print("Stability Core Model", model_id)
     print(input_data)
@@ -431,6 +432,8 @@ async def process_sd_image_to_image(user_id: str, model_id: str, image_url: str,
     download_image_response = requests.get(image_url)
     if download_image_response.status_code != 200:
         raise HTTPException(status_code=400, detail="Failed to download image from the provided URL")
+
+    print("Image taken")
 
     response = requests.post(
         f"{api_host}/v1/generation/{engine_id}/image-to-image",
@@ -571,6 +574,8 @@ async def process_stability_inpaint(user_id: str, image: str, prompt: str, mask:
         "seed": seed,
         "output_format": output_format,
     }
+
+    print("Calling Stability Inpaint API", data)
 
     response = requests.post(url, headers=headers, files=files, data=data)
     if response.status_code != 200:

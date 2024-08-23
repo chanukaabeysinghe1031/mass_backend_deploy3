@@ -1,3 +1,4 @@
+import os
 from typing import Optional, List
 
 import uvicorn
@@ -18,10 +19,13 @@ from models.sd_models import process_stability_ultra, process_stability_core, pr
 
 load_dotenv()
 
+# get original url from env
+origin_url = os.getenv("FRONTEND_ENDPOINT")
+
 app = FastAPI()
 
 origins = [
-    "http://localhost:4000"
+    origin_url
 ]
 
 app.add_middleware(
@@ -40,6 +44,7 @@ class TextToImageRequest(BaseModel):
     height: Optional[int] = 1024
     width: Optional[int] = 1024
     aspect_ratio: Optional[str] = "1:1"
+    style: Optional[str] = None
 
 
 class TextToImageResponse(BaseModel):
@@ -57,6 +62,8 @@ async def text_to_image(request: TextToImageRequest):
         height = request.height
         width = request.width
         aspect_ratio = request.aspect_ratio
+        style = request.style
+        print(style)
 
         if model_id == "fooocus":
             return await process_fooocus_text_to_image(user_id, model_id, input_data)
@@ -67,7 +74,7 @@ async def text_to_image(request: TextToImageRequest):
         elif model_id == "stability-ultra":
             return await process_stability_ultra(user_id, model_id, input_data, height, width, aspect_ratio)
         elif model_id == "stability-core":
-            return await process_stability_core(user_id, model_id, input_data, height, width, aspect_ratio)
+            return await process_stability_core(user_id, model_id, input_data, height, width, aspect_ratio, style)
         elif model_id == "stability-diffusion":
             return await process_stability_diffusion(user_id, model_id, input_data, height, width, aspect_ratio)
         else:
